@@ -19,3 +19,6 @@ Thumbs.db
 *.log
 npm-debug.log*
 devlog/
+
+# cache
+__pycache__/
