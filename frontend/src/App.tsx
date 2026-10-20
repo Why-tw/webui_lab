@@ -8,18 +8,57 @@ import { ToolRail } from "./components/ToolRail";
 import {
     CELL_SIZE,
     COLORS,
+    DISPLAY_PROFILE_PRESETS,
     GRID_HEIGHT,
     GRID_WIDTH,
+    MAX_CUSTOM_DIMENSION,
     MAX_ZOOM,
     MIN_ZOOM,
     TOOLS,
+    colorsForProfile,
+    type DisplayProfile,
 } from "./constants/pixelEditor";
-import type { Gesture, Layer, Pixel, Point, Preview, ShortcutMap, Symmetry, Tool } from "./types/pixelEditor";
-import { circlePoints, linePoints, makeLayer, rectanglePoints } from "./utils/pixelEditor";
+import { formatMessage, isLanguage, locales, type Language } from "./resources/locales";
+import { IMAGE_ASSETS } from "./resources/images";
+import type { Gesture, Layer, Pixel, Point, Preview, Selection, ShortcutMap, Symmetry, Tool } from "./types/pixelEditor";
+import { circlePoints, circularBrushOffsets, linePoints, makeLayer, rectanglePoints } from "./utils/pixelEditor";
 import "./App.css";
 
 function createDefaultShortcuts(): ShortcutMap {
     return Object.fromEntries(TOOLS.map((tool) => [tool.id, tool.shortcut])) as ShortcutMap;
+}
+
+type HistorySnapshot = {
+    layers: Layer[];
+    activeLayerId: string;
+    selection: Selection | null;
+};
+
+type SelectionMovePreview = {
+    source: Selection;
+    pixels: Pixel[][];
+    offset: Point;
+};
+
+const MAX_HISTORY_STEPS = 100;
+
+function convertLayerSize(layer: Layer, width: number, height: number, palette?: string[]): Layer {
+    return {
+        ...layer,
+        pixels: Array.from({ length: height }, (_, y) =>
+            Array.from({ length: width }, (_, x) => {
+                const pixel = layer.pixels[y]?.[x] ?? null;
+                if (!pixel || !palette) return pixel;
+
+                const channels = pixel.match(/[\da-f]{2}/gi)?.slice(0, 3).map((channel) => parseInt(channel, 16));
+                if (!channels || channels.length !== 3) return palette[0];
+
+                const luminance = channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+                const index = palette.length === 2 ? (luminance >= 128 ? 1 : 0) : Math.round((luminance / 255) * (palette.length - 1));
+                return palette[index];
+            }),
+        ),
+    };
 }
 
 function App() {
@@ -31,17 +70,35 @@ function App() {
     const nextLayerIdRef = useRef(2);
     const wheelZoomAnchorRef = useRef<{ oldZoom: number; localX: number; localY: number; canvasX: number; canvasY: number } | null>(null);
 
+    const [language, setLanguage] = useState<Language>(() => {
+        try {
+            const saved = localStorage.getItem("embedpixel-language");
+            return isLanguage(saved) ? saved : "zh-Hant";
+        } catch {
+            return "zh-Hant";
+        }
+    });
+    const messages = locales[language];
     const [zoom, setZoom] = useState(1);
-    const [layers, setLayers] = useState<Layer[]>(() => [makeLayer("layer-1", "圖層 1")]);
+    const [displayProfile, setDisplayProfile] = useState<DisplayProfile>("custom");
+    const [canvasSize, setCanvasSize] = useState({ width: GRID_WIDTH, height: GRID_HEIGHT });
+    const [layers, setLayers] = useState<Layer[]>(() => [
+        makeLayer("layer-1", formatMessage(messages.layers.defaultName, { number: 1 }), canvasSize.width, canvasSize.height),
+    ]);
     const [activeLayerId, setActiveLayerId] = useState("layer-1");
+    const historyRef = useRef<{ past: HistorySnapshot[]; future: HistorySnapshot[] }>({ past: [], future: [] });
+    const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
     const [activeTool, setActiveTool] = useState<Tool>("pencil");
+    const [brushSize, setBrushSize] = useState(1);
     const [color, setColor] = useState(COLORS[0]);
     const [gridVisible, setGridVisible] = useState(true);
     const [symmetryEnabled, setSymmetryEnabled] = useState(false);
     const [symmetry, setSymmetry] = useState<Symmetry>("vertical");
-    const [symmetryPosition, setSymmetryPosition] = useState(GRID_WIDTH / 2);
+    const [symmetryPosition, setSymmetryPosition] = useState(canvasSize.width / 2);
     const [draggingAxis, setDraggingAxis] = useState(false);
     const [preview, setPreview] = useState<Preview | null>(null);
+    const [selection, setSelection] = useState<Selection | null>(null);
+    const [selectionMovePreview, setSelectionMovePreview] = useState<SelectionMovePreview | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [listeningTool, setListeningTool] = useState<Tool | null>(null);
     const [shortcuts, setShortcuts] = useState<ShortcutMap>(() => {
@@ -54,8 +111,111 @@ function App() {
     });
 
     const zoomSpeed = 0.3;
-    const activeToolConfig = TOOLS.find((tool) => tool.id === activeTool) ?? TOOLS[0];
     const activeLayer = layers.find((layer) => layer.id === activeLayerId);
+
+    function changeActiveTool(nextTool: Tool) {
+        if (nextTool !== "select") {
+            if (gestureRef.current?.mode === "select" || gestureRef.current?.mode === "move") gestureRef.current = null;
+            setSelection(null);
+            setSelectionMovePreview(null);
+        }
+        setActiveTool(nextTool);
+    }
+
+    const updateHistoryState = useCallback(() => {
+        setHistoryState({
+            canUndo: historyRef.current.past.length > 0,
+            canRedo: historyRef.current.future.length > 0,
+        });
+    }, []);
+
+    const recordHistory = useCallback(() => {
+        historyRef.current.past.push({ layers, activeLayerId, selection });
+        if (historyRef.current.past.length > MAX_HISTORY_STEPS) historyRef.current.past.shift();
+        historyRef.current.future = [];
+        updateHistoryState();
+    }, [activeLayerId, layers, selection, updateHistoryState]);
+
+    const undo = useCallback(() => {
+        const previous = historyRef.current.past.pop();
+        if (!previous) return;
+
+        historyRef.current.future.push({ layers, activeLayerId, selection });
+        setLayers(previous.layers);
+        setActiveLayerId(previous.activeLayerId);
+        setSelection(previous.selection);
+        updateHistoryState();
+    }, [activeLayerId, layers, selection, updateHistoryState]);
+
+    const redo = useCallback(() => {
+        const next = historyRef.current.future.pop();
+        if (!next) return;
+
+        historyRef.current.past.push({ layers, activeLayerId, selection });
+        if (historyRef.current.past.length > MAX_HISTORY_STEPS) historyRef.current.past.shift();
+        setLayers(next.layers);
+        setActiveLayerId(next.activeLayerId);
+        setSelection(next.selection);
+        updateHistoryState();
+    }, [activeLayerId, layers, selection, updateHistoryState]);
+
+    function clearHistory() {
+        historyRef.current = { past: [], future: [] };
+        updateHistoryState();
+    }
+
+    function changeDisplayProfile(nextProfile: DisplayProfile) {
+        if (nextProfile === displayProfile) return;
+
+        const preset = nextProfile === "custom" ? null : DISPLAY_PROFILE_PRESETS[nextProfile];
+        const nextSize = preset ?? canvasSize;
+        const palette = colorsForProfile(nextProfile);
+
+        setLayers((current) => current.map((layer) => convertLayerSize(
+            layer,
+            nextSize.width,
+            nextSize.height,
+            nextProfile === "custom" ? undefined : palette,
+        )));
+        setCanvasSize(nextSize);
+        setDisplayProfile(nextProfile);
+        setColor(palette[0]);
+        setSymmetryPosition(symmetry === "vertical" ? nextSize.width / 2 : nextSize.height / 2);
+        gestureRef.current = null;
+        setPreview(null);
+        setSelection(null);
+        setSelectionMovePreview(null);
+        clearHistory();
+    }
+
+    function changeCustomSize(width: number, height: number) {
+        if (displayProfile !== "custom" || !Number.isFinite(width) || !Number.isFinite(height)) return;
+
+        const nextSize = {
+            width: Math.min(MAX_CUSTOM_DIMENSION, Math.max(1, Math.round(width))),
+            height: Math.min(MAX_CUSTOM_DIMENSION, Math.max(1, Math.round(height))),
+        };
+        if (nextSize.width === canvasSize.width && nextSize.height === canvasSize.height) return;
+
+        setLayers((current) => current.map((layer) => convertLayerSize(layer, nextSize.width, nextSize.height)));
+        setCanvasSize(nextSize);
+        setSymmetryPosition(symmetry === "vertical" ? nextSize.width / 2 : nextSize.height / 2);
+        gestureRef.current = null;
+        setPreview(null);
+        setSelection(null);
+        setSelectionMovePreview(null);
+        clearHistory();
+    }
+
+    useEffect(() => {
+        document.documentElement.lang = language;
+        document.title = messages.appName;
+    }, [language, messages.appName]);
+
+    useEffect(() => {
+        const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+        if (favicon) favicon.href = IMAGE_ASSETS.appIcon;
+    }, []);
 
     const drawCanvas = useCallback(() => {
         const canvas = canvasRef.current;
@@ -66,12 +226,28 @@ function App() {
 
         for (const layer of layers) {
             if (!layer.visible) continue;
-            for (let y = 0; y < GRID_HEIGHT; y += 1) {
-                for (let x = 0; x < GRID_WIDTH; x += 1) {
+            for (let y = 0; y < canvasSize.height; y += 1) {
+                for (let x = 0; x < canvasSize.width; x += 1) {
+                    if (selectionMovePreview && layer.id === activeLayerId
+                        && x >= selectionMovePreview.source.x && x < selectionMovePreview.source.x + selectionMovePreview.source.width
+                        && y >= selectionMovePreview.source.y && y < selectionMovePreview.source.y + selectionMovePreview.source.height) continue;
                     const pixel = layer.pixels[y][x];
                     if (pixel) {
                         context.fillStyle = pixel;
                         context.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    }
+                }
+            }
+
+            if (selectionMovePreview && layer.id === activeLayerId) {
+                const { source, pixels, offset } = selectionMovePreview;
+                for (let y = 0; y < pixels.length; y += 1) {
+                    for (let x = 0; x < (pixels[y]?.length ?? 0); x += 1) {
+                        const pixel = pixels[y][x];
+                        if (pixel) {
+                            context.fillStyle = pixel;
+                            context.fillRect((source.x + offset.x + x) * CELL_SIZE, (source.y + offset.y + y) * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                        }
                     }
                 }
             }
@@ -80,13 +256,13 @@ function App() {
         if (gridVisible) {
             context.strokeStyle = "rgba(63, 66, 61, .18)";
             context.lineWidth = 1;
-            for (let x = 0; x <= GRID_WIDTH; x += 1) {
+            for (let x = 0; x <= canvasSize.width; x += 1) {
                 context.beginPath();
                 context.moveTo(x * CELL_SIZE + 0.5, 0);
                 context.lineTo(x * CELL_SIZE + 0.5, canvas.height);
                 context.stroke();
             }
-            for (let y = 0; y <= GRID_HEIGHT; y += 1) {
+            for (let y = 0; y <= canvasSize.height; y += 1) {
                 context.beginPath();
                 context.moveTo(0, y * CELL_SIZE + 0.5);
                 context.lineTo(canvas.width, y * CELL_SIZE + 0.5);
@@ -121,14 +297,30 @@ function App() {
 
             context.fillStyle = `${color}99`;
             for (const point of points) {
-                if (point.x >= 0 && point.x < GRID_WIDTH && point.y >= 0 && point.y < GRID_HEIGHT) {
+                if (point.x >= 0 && point.x < canvasSize.width && point.y >= 0 && point.y < canvasSize.height) {
                     context.fillRect(point.x * CELL_SIZE, point.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
                 }
             }
         }
-    }, [activeTool, color, gridVisible, layers, preview, symmetry, symmetryEnabled, symmetryPosition, zoom]);
 
-    const getCanvasPosition = useCallback((clientX: number, clientY: number) => {
+        if (selection) {
+            const selected = selectionMovePreview
+                ? { ...selectionMovePreview.source, x: selectionMovePreview.source.x + selectionMovePreview.offset.x, y: selectionMovePreview.source.y + selectionMovePreview.offset.y }
+                : selection;
+            context.save();
+            context.lineWidth = Math.max(1, 1 / zoom);
+            context.setLineDash([4 / zoom, 3 / zoom]);
+            context.strokeStyle = "#fffefa";
+            context.strokeRect(selected.x * CELL_SIZE + 0.5, selected.y * CELL_SIZE + 0.5, selected.width * CELL_SIZE - 1, selected.height * CELL_SIZE - 1);
+            context.lineDashOffset = 3 / zoom;
+            context.strokeStyle = "#30322e";
+            context.strokeRect(selected.x * CELL_SIZE + 0.5, selected.y * CELL_SIZE + 0.5, selected.width * CELL_SIZE - 1, selected.height * CELL_SIZE - 1);
+            context.restore();
+        }
+
+    }, [activeLayerId, activeTool, canvasSize.height, canvasSize.width, color, gridVisible, layers, preview, selection, selectionMovePreview, symmetry, symmetryEnabled, symmetryPosition, zoom]);
+
+    const getCanvasPosition = useCallback((clientX: number, clientY: number, allowOutside = false) => {
         const canvas = canvasRef.current;
         if (!canvas) return null;
 
@@ -136,13 +328,15 @@ function App() {
         const x = ((clientX - rect.left) * canvas.width) / rect.width / CELL_SIZE;
         const y = ((clientY - rect.top) * canvas.height) / rect.height / CELL_SIZE;
 
-        if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return null;
+        if (!allowOutside && (x < 0 || x >= canvasSize.width || y < 0 || y >= canvasSize.height)) return null;
         return { x, y, cell: { x: Math.floor(x), y: Math.floor(y) } };
-    }, []);
+    }, [canvasSize.height, canvasSize.width]);
 
     const paintPoints = useCallback(
-        (points: Point[], erase = false) => {
+        (points: Point[], erase = false, useBrush = false) => {
             const layerId = activeLayerId;
+            const stampSize = useBrush ? brushSize : 1;
+            const stampOffsets = useBrush ? circularBrushOffsets(stampSize) : [{ x: 0, y: 0 }];
             setLayers((current) =>
                 current.map((layer) => {
                     if (layer.id !== layerId) return layer;
@@ -151,7 +345,7 @@ function App() {
                     const changedRows = new Map<number, Pixel[]>();
 
                     const setPixel = (x: number, y: number) => {
-                        if (x < 0 || x >= GRID_WIDTH || y < 0 || y >= GRID_HEIGHT) return;
+                        if (x < 0 || x >= canvasSize.width || y < 0 || y >= canvasSize.height) return;
 
                         let row = changedRows.get(y);
                         if (!row) {
@@ -163,12 +357,16 @@ function App() {
                     };
 
                     for (const point of points) {
-                        setPixel(point.x, point.y);
-                        if (symmetryEnabled) {
-                            if (symmetry === "vertical") {
-                                setPixel(Math.round(2 * symmetryPosition - point.x - 1), point.y);
-                            } else {
-                                setPixel(point.x, Math.round(2 * symmetryPosition - point.y - 1));
+                        for (const offset of stampOffsets) {
+                            const pixelX = point.x + offset.x;
+                            const pixelY = point.y + offset.y;
+                            setPixel(pixelX, pixelY);
+                            if (symmetryEnabled) {
+                                if (symmetry === "vertical") {
+                                    setPixel(Math.round(2 * symmetryPosition - pixelX - 1), pixelY);
+                                } else {
+                                    setPixel(pixelX, Math.round(2 * symmetryPosition - pixelY - 1));
+                                }
                             }
                         }
                     }
@@ -177,7 +375,7 @@ function App() {
                 }),
             );
         },
-        [activeLayerId, color, symmetry, symmetryEnabled, symmetryPosition],
+        [activeLayerId, brushSize, canvasSize.height, canvasSize.width, color, symmetry, symmetryEnabled, symmetryPosition],
     );
 
     const floodFill = useCallback(
@@ -196,7 +394,7 @@ function App() {
                     const seeds = symmetryEnabled ? [point, mirror] : [point];
 
                     for (const seed of seeds) {
-                        if (seed.x < 0 || seed.x >= GRID_WIDTH || seed.y < 0 || seed.y >= GRID_HEIGHT) continue;
+                        if (seed.x < 0 || seed.x >= canvasSize.width || seed.y < 0 || seed.y >= canvasSize.height) continue;
                         const target = pixels[seed.y][seed.x];
                         if (target === color) continue;
 
@@ -205,7 +403,7 @@ function App() {
 
                         while (cursor < queue.length) {
                             const currentPoint = queue[cursor++];
-                            if (currentPoint.x < 0 || currentPoint.x >= GRID_WIDTH || currentPoint.y < 0 || currentPoint.y >= GRID_HEIGHT) continue;
+                            if (currentPoint.x < 0 || currentPoint.x >= canvasSize.width || currentPoint.y < 0 || currentPoint.y >= canvasSize.height) continue;
                             if (pixels[currentPoint.y][currentPoint.x] !== target) continue;
 
                             pixels[currentPoint.y][currentPoint.x] = color;
@@ -222,7 +420,7 @@ function App() {
                 }),
             );
         },
-        [activeLayerId, color, symmetry, symmetryEnabled, symmetryPosition],
+        [activeLayerId, canvasSize.height, canvasSize.width, color, symmetry, symmetryEnabled, symmetryPosition],
     );
 
     const finishGesture = useCallback(
@@ -231,6 +429,7 @@ function App() {
             gestureRef.current = null;
             setDraggingAxis(false);
             setPreview(null);
+            setSelectionMovePreview(null);
 
             if (gesture?.mode === "shape") {
                 const end = gesture.last;
@@ -240,14 +439,46 @@ function App() {
                         : activeTool === "circle"
                             ? circlePoints(gesture.start, end)
                             : rectanglePoints(gesture.start, end);
+                recordHistory();
                 paintPoints(points);
+            }
+
+            if (gesture?.mode === "move" && gesture.selection && gesture.pixels) {
+                const offset = selectionMovePreview?.offset ?? { x: 0, y: 0 };
+                if (offset.x !== 0 || offset.y !== 0) {
+                    const source = gesture.selection;
+                    recordHistory();
+                    setLayers((current) => current.map((layer) => {
+                        if (layer.id !== activeLayerId) return layer;
+                        const pixels = layer.pixels.map((row) => [...row]);
+                        for (let y = Math.max(0, source.y); y < Math.min(canvasSize.height, source.y + source.height); y += 1) {
+                            for (let x = Math.max(0, source.x); x < Math.min(canvasSize.width, source.x + source.width); x += 1) {
+                                pixels[y][x] = null;
+                            }
+                        }
+                        const destinationX = source.x + offset.x;
+                        const destinationY = source.y + offset.y;
+                        for (let y = 0; y < gesture.pixels!.length; y += 1) {
+                            for (let x = 0; x < (gesture.pixels![y]?.length ?? 0); x += 1) {
+                                const pixel = gesture.pixels![y][x];
+                                const targetX = destinationX + x;
+                                const targetY = destinationY + y;
+                                if (pixel !== null && targetX >= 0 && targetX < canvasSize.width && targetY >= 0 && targetY < canvasSize.height) {
+                                    pixels[targetY][targetX] = pixel;
+                                }
+                            }
+                        }
+                        return { ...layer, pixels };
+                    }));
+                    setSelection({ ...source, x: source.x + offset.x, y: source.y + offset.y });
+                }
             }
 
             if (event?.currentTarget.hasPointerCapture(event.pointerId)) {
                 event.currentTarget.releasePointerCapture(event.pointerId);
             }
         },
-        [activeTool, paintPoints],
+        [activeLayerId, activeTool, canvasSize.height, canvasSize.width, paintPoints, recordHistory, selectionMovePreview],
     );
 
     useEffect(() => {
@@ -275,6 +506,15 @@ function App() {
         viewport.scrollTop = canvas.offsetTop + anchor.canvasY * scale - anchor.localY;
         wheelZoomAnchorRef.current = null;
     }, [zoom]);
+
+    useLayoutEffect(() => {
+        const viewport = viewportRef.current;
+        const canvas = canvasRef.current;
+        if (!viewport || !canvas) return;
+
+        viewport.scrollLeft = Math.max(0, canvas.offsetLeft + (canvas.offsetWidth - viewport.clientWidth) / 2);
+        viewport.scrollTop = Math.max(0, canvas.offsetTop + (canvas.offsetHeight - viewport.clientHeight) / 2);
+    }, [canvasSize.height, canvasSize.width]);
 
     useEffect(() => {
         const viewport = viewportRef.current;
@@ -320,6 +560,11 @@ function App() {
     useEffect(() => {
         function handleKeyDown(event: KeyboardEvent) {
             if (listeningTool) {
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    setListeningTool(null);
+                    return;
+                }
                 event.preventDefault();
                 const shortcut = event.key.length === 1 ? event.key.toUpperCase() : event.key;
                 setShortcuts((current) => {
@@ -331,7 +576,52 @@ function App() {
                 return;
             }
 
-            if (event.ctrlKey || event.metaKey || event.altKey || ["INPUT", "TEXTAREA"].includes((event.target as HTMLElement)?.tagName)) return;
+            if (event.key === "Escape" && (selection || gestureRef.current?.mode === "select" || gestureRef.current?.mode === "move")) {
+                event.preventDefault();
+                if (gestureRef.current?.mode === "select" || gestureRef.current?.mode === "move") gestureRef.current = null;
+                setSelection(null);
+                setSelectionMovePreview(null);
+                return;
+            }
+
+            const target = event.target as HTMLElement;
+            const isEditableTarget = ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName) || target?.isContentEditable;
+            if (!isEditableTarget && event.key === "Backspace" && selection) {
+                event.preventDefault();
+                const selectedLayer = layers.find((layer) => layer.id === activeLayerId);
+                const hasPixels = selectedLayer?.pixels.some((row, y) =>
+                    y >= Math.max(0, selection.y) && y < Math.min(canvasSize.height, selection.y + selection.height)
+                    && row.slice(Math.max(0, selection.x), Math.min(canvasSize.width, selection.x + selection.width)).some((pixel) => pixel !== null),
+                );
+                if (hasPixels) {
+                    recordHistory();
+                    setLayers((current) => current.map((layer) => {
+                        if (layer.id !== activeLayerId) return layer;
+                        const pixels = [...layer.pixels];
+                        for (let y = Math.max(0, selection.y); y < Math.min(canvasSize.height, selection.y + selection.height); y += 1) {
+                            pixels[y] = [...pixels[y]];
+                            for (let x = Math.max(0, selection.x); x < Math.min(canvasSize.width, selection.x + selection.width); x += 1) pixels[y][x] = null;
+                        }
+                        return { ...layer, pixels };
+                    }));
+                }
+                return;
+            }
+            if (!isEditableTarget && (event.ctrlKey || event.metaKey) && !event.altKey) {
+                const key = event.key.toLowerCase();
+                if (key === "z") {
+                    event.preventDefault();
+                    undo();
+                    return;
+                }
+                if (key === "x") {
+                    event.preventDefault();
+                    redo();
+                    return;
+                }
+            }
+
+            if (event.ctrlKey || event.metaKey || event.altKey || isEditableTarget) return;
 
             const match = TOOLS.find(
                 (tool) => tool.id !== activeTool && shortcuts[tool.id].toUpperCase() === event.key.toUpperCase(),
@@ -339,13 +629,13 @@ function App() {
 
             if (match) {
                 event.preventDefault();
-                setActiveTool(match.id);
+                changeActiveTool(match.id);
             }
         }
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [activeTool, listeningTool, shortcuts]);
+    }, [activeLayerId, activeTool, canvasSize.height, canvasSize.width, layers, listeningTool, recordHistory, redo, selection, shortcuts, undo]);
 
     function changeZoom(amount: number) {
         const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomRef.current + amount));
@@ -362,7 +652,7 @@ function App() {
 
         event.currentTarget.setPointerCapture(event.pointerId);
 
-        if (symmetryEnabled) {
+        if (symmetryEnabled && activeTool !== "select") {
             const axisDistance =
                 symmetry === "vertical" ? Math.abs(position.x - symmetryPosition) : Math.abs(position.y - symmetryPosition);
 
@@ -373,15 +663,36 @@ function App() {
             }
         }
 
+        if (activeTool === "select") {
+            const selected = selection && position.cell.x >= selection.x && position.cell.x < selection.x + selection.width
+                && position.cell.y >= selection.y && position.cell.y < selection.y + selection.height;
+            if (selected) {
+                const layer = layers.find((item) => item.id === activeLayerId);
+                const pixels = Array.from({ length: selection.height }, (_, y) =>
+                    Array.from({ length: selection.width }, (_, x) => layer?.pixels[selection.y + y]?.[selection.x + x] ?? null),
+                );
+                gestureRef.current = { start: position.cell, last: position.cell, mode: "move", selection, pixels };
+                setSelectionMovePreview({ source: selection, pixels, offset: { x: 0, y: 0 } });
+            } else {
+                const nextSelection = { x: position.cell.x, y: position.cell.y, width: 1, height: 1 };
+                gestureRef.current = { start: position.cell, last: position.cell, mode: "select" };
+                setSelection(nextSelection);
+                setSelectionMovePreview(null);
+            }
+            return;
+        }
+
         if (activeTool === "fill") {
+            recordHistory();
             floodFill(position.cell);
             event.currentTarget.releasePointerCapture(event.pointerId);
             return;
         }
 
         if (activeTool === "pencil" || activeTool === "eraser") {
+            recordHistory();
             gestureRef.current = { start: position.cell, last: position.cell, mode: "paint" };
-            paintPoints([position.cell], activeTool === "eraser");
+            paintPoints([position.cell], activeTool === "eraser", true);
         } else {
             gestureRef.current = { start: position.cell, last: position.cell, mode: "shape" };
             setPreview({ start: position.cell, end: position.cell });
@@ -390,13 +701,34 @@ function App() {
 
     function handlePointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
         const gesture = gestureRef.current;
-        if (!gesture) return;
-
-        const position = getCanvasPosition(event.clientX, event.clientY);
+        const position = getCanvasPosition(event.clientX, event.clientY, gesture?.mode === "move");
         if (!position) return;
+        if (!gesture) return;
 
         if (gesture.axis) {
             setSymmetryPosition(gesture.axis === "vertical" ? position.x : position.y);
+            return;
+        }
+
+        if (gesture.mode === "select") {
+            const x = Math.min(gesture.start.x, position.cell.x);
+            const y = Math.min(gesture.start.y, position.cell.y);
+            setSelection({
+                x,
+                y,
+                width: Math.abs(position.cell.x - gesture.start.x) + 1,
+                height: Math.abs(position.cell.y - gesture.start.y) + 1,
+            });
+            gesture.last = position.cell;
+            return;
+        }
+
+        if (gesture.mode === "move" && gesture.selection && gesture.pixels) {
+            const offset = {
+                x: position.cell.x - gesture.start.x,
+                y: position.cell.y - gesture.start.y,
+            };
+            setSelectionMovePreview({ source: gesture.selection, pixels: gesture.pixels, offset });
             return;
         }
 
@@ -406,14 +738,27 @@ function App() {
             return;
         }
 
-        paintPoints(linePoints(gesture.last, position.cell), activeTool === "eraser");
+        paintPoints(linePoints(gesture.last, position.cell), activeTool === "eraser", true);
         gesture.last = position.cell;
     }
 
     function addLayer() {
         const id = `layer-${nextLayerIdRef.current++}`;
-        setLayers((current) => [...current, makeLayer(id, `圖層 ${current.length + 1}`)]);
+        recordHistory();
+        setLayers((current) => [
+            ...current,
+            makeLayer(id, formatMessage(messages.layers.defaultName, { number: current.length + 1 }), canvasSize.width, canvasSize.height),
+        ]);
         setActiveLayerId(id);
+    }
+
+    function changeLanguage(nextLanguage: Language) {
+        setLanguage(nextLanguage);
+        try {
+            localStorage.setItem("embedpixel-language", nextLanguage);
+        } catch {
+            // The current session still switches language when storage is unavailable.
+        }
     }
 
     function deleteActiveLayer() {
@@ -422,25 +767,33 @@ function App() {
         const index = layers.findIndex((layer) => layer.id === activeLayerId);
         const remaining = layers.filter((layer) => layer.id !== activeLayerId);
 
+        recordHistory();
         setLayers(remaining);
         setActiveLayerId(remaining[Math.max(0, index - 1)].id);
     }
 
     function moveActiveLayer(direction: -1 | 1) {
-        setLayers((current) => {
-            const index = current.findIndex((layer) => layer.id === activeLayerId);
-            const target = index + direction;
-            if (index < 0 || target < 0 || target >= current.length) return current;
+        const index = layers.findIndex((layer) => layer.id === activeLayerId);
+        const target = index + direction;
+        if (index < 0 || target < 0 || target >= layers.length) return;
 
+        recordHistory();
+        setLayers((current) => {
             const reordered = [...current];
             [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
             return reordered;
         });
     }
 
+    function toggleLayerVisibility(layerId: string) {
+        if (!layers.some((layer) => layer.id === layerId)) return;
+        recordHistory();
+        setLayers((current) => current.map((item) => (item.id === layerId ? { ...item, visible: !item.visible } : item)));
+    }
+
     function setSymmetryDirection(nextSymmetry: Symmetry) {
         setSymmetry(nextSymmetry);
-        setSymmetryPosition(nextSymmetry === "vertical" ? GRID_WIDTH / 2 : GRID_HEIGHT / 2);
+        setSymmetryPosition(nextSymmetry === "vertical" ? canvasSize.width / 2 : canvasSize.height / 2);
     }
 
     function resetZoom() {
@@ -458,26 +811,23 @@ function App() {
     return (
         <main className="editor-shell">
             <header className="topbar">
-                <a className="brand" href="#canvas" aria-label="EmbedPixel Studio">
+                <a className="brand" href="#canvas" aria-label={messages.appName}>
                     EP<span>.</span>
                 </a>
                 <div className="document-title">
-                    <strong>未命名像素作品</strong>
-                    <span>64 × 48 px</span>
+                    <strong>{messages.document.untitled}</strong>
+                    <span>{formatMessage(messages.document.dimensions, canvasSize)}</span>
                 </div>
-                <nav className="workspace-nav" aria-label="工作區導航">
+                <nav className="workspace-nav" aria-label={messages.navigation.label}>
                     <button className="nav-tab active" type="button">
-                        畫布
+                        {messages.navigation.canvas}
                     </button>
-                    <button className="nav-tab" type="button" disabled title="預留功能">
-                        動畫
-                    </button>
-                    <button className="nav-tab" type="button" disabled title="預留功能">
-                        匯出
+                    <button className="nav-tab" type="button" disabled title={messages.navigation.reserved}>
+                        {messages.navigation.export}
                     </button>
                 </nav>
-                <button className="settings-trigger" type="button" onClick={() => setSettingsOpen(true)} aria-label="開啟設定">
-                    ⚙ <span>設定</span>
+                <button className="settings-trigger" type="button" onClick={() => setSettingsOpen(true)} aria-label={messages.settingsTrigger.label}>
+                    ⚙ <span>{messages.settingsTrigger.text}</span>
                 </button>
             </header>
 
@@ -485,17 +835,32 @@ function App() {
                 <ToolRail
                     activeTool={activeTool}
                     color={color}
+                    colors={colorsForProfile(displayProfile)}
                     shortcuts={shortcuts}
+                    messages={messages}
                     onSelectColor={setColor}
-                    onSelectTool={setActiveTool}
+                    onSelectTool={changeActiveTool}
                 />
 
                 <CanvasWorkspace
                     canvasRef={canvasRef}
                     viewportRef={viewportRef}
-                    activeTool={activeToolConfig.label}
+                    activeTool={messages.tools[activeTool]}
+                    showBrushSize={activeTool === "pencil" || activeTool === "eraser"}
+                    brushSize={brushSize}
+                    onBrushSizeChange={setBrushSize}
                     activeLayerName={activeLayer?.name}
+                    messages={messages}
                     gridVisible={gridVisible}
+                    displayProfile={displayProfile}
+                    canvasWidth={canvasSize.width}
+                    canvasHeight={canvasSize.height}
+                    onChangeDisplayProfile={changeDisplayProfile}
+                    onCustomSizeChange={changeCustomSize}
+                    canUndo={historyState.canUndo}
+                    canRedo={historyState.canRedo}
+                    onUndo={undo}
+                    onRedo={redo}
                     zoom={zoom}
                     symmetryEnabled={symmetryEnabled}
                     symmetry={symmetry}
@@ -514,14 +879,15 @@ function App() {
 
                 <LayersPanel
                     layers={layers}
+                    messages={messages}
+                    canvasWidth={canvasSize.width}
+                    canvasHeight={canvasSize.height}
                     activeLayerId={activeLayerId}
                     onAddLayer={addLayer}
                     onDeleteActiveLayer={deleteActiveLayer}
                     onMoveActiveLayer={moveActiveLayer}
                     onSetActiveLayer={setActiveLayerId}
-                    onToggleLayerVisibility={(layerId) =>
-                        setLayers((current) => current.map((item) => (item.id === layerId ? { ...item, visible: !item.visible } : item)))
-                    }
+                    onToggleLayerVisibility={toggleLayerVisibility}
                     symmetryEnabled={symmetryEnabled}
                     symmetry={symmetry}
                     onSetSymmetry={(value) => setSymmetry(value)}
@@ -533,6 +899,8 @@ function App() {
             {settingsOpen && (
                 <SettingsDialog
                     gridVisible={gridVisible}
+                    language={language}
+                    messages={messages}
                     shortcuts={shortcuts}
                     listeningTool={listeningTool}
                     onClose={() => {
@@ -540,6 +908,7 @@ function App() {
                         setListeningTool(null);
                     }}
                     onToggleGrid={setGridVisible}
+                    onChangeLanguage={changeLanguage}
                     onSetListeningTool={setListeningTool}
                     onResetShortcuts={handleResetShortcuts}
                 />

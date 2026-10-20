@@ -1,7 +1,11 @@
 import type { Layer } from "../types/pixelEditor";
+import type { Messages } from "../resources/locales";
 
 type LayersPanelProps = {
     layers: Layer[];
+    messages: Messages;
+    canvasWidth: number;
+    canvasHeight: number;
     activeLayerId: string;
     onAddLayer: () => void;
     onDeleteActiveLayer: () => void;
@@ -17,6 +21,9 @@ type LayersPanelProps = {
 
 export function LayersPanel({
     layers,
+    messages,
+    canvasWidth,
+    canvasHeight,
     activeLayerId,
     onAddLayer,
     onDeleteActiveLayer,
@@ -32,29 +39,29 @@ export function LayersPanel({
     const activeIndex = layers.findIndex((layer) => layer.id === activeLayerId);
 
     return (
-        <aside className="layers-panel" aria-label="圖層面板">
+        <aside className="layers-panel" aria-label={messages.layers.label}>
             <div className="panel-heading">
                 <div>
                     <span className="eyebrow">STACK</span>
-                    <h2>圖層</h2>
+                    <h2>{messages.layers.heading}</h2>
                 </div>
                 <span className="layer-count">{layers.length.toString().padStart(2, "0")}</span>
             </div>
 
             <div className="layer-actions">
-                <button type="button" onClick={onAddLayer} title="新增圖層">
-                    ＋ <span>新增</span>
+                <button type="button" onClick={onAddLayer} title={messages.layers.addTitle}>
+                    ＋ <span>{messages.layers.add}</span>
                 </button>
-                <button type="button" onClick={onDeleteActiveLayer} disabled={layers.length <= 1} title="刪除目前圖層">
-                    － <span>刪除</span>
+                <button type="button" onClick={onDeleteActiveLayer} disabled={layers.length <= 1} title={messages.layers.deleteTitle}>
+                    － <span>{messages.layers.delete}</span>
                 </button>
                 <span className="action-spacer" />
                 <button
                     type="button"
                     onClick={() => onMoveActiveLayer(1)}
                     disabled={activeIndex === layers.length - 1}
-                    aria-label="上移圖層"
-                    title="上移圖層"
+                    aria-label={messages.layers.moveUp}
+                    title={messages.layers.moveUp}
                 >
                     ↑
                 </button>
@@ -62,8 +69,8 @@ export function LayersPanel({
                     type="button"
                     onClick={() => onMoveActiveLayer(-1)}
                     disabled={activeIndex === 0}
-                    aria-label="下移圖層"
-                    title="下移圖層"
+                    aria-label={messages.layers.moveDown}
+                    title={messages.layers.moveDown}
                 >
                     ↓
                 </button>
@@ -76,8 +83,8 @@ export function LayersPanel({
                             type="button"
                             className={`visibility-button ${layer.visible ? "visible" : ""}`}
                             onClick={() => onToggleLayerVisibility(layer.id)}
-                            aria-label={`${layer.visible ? "隱藏" : "顯示"}${layer.name}`}
-                            title={layer.visible ? "隱藏圖層" : "顯示圖層"}
+                            aria-label={`${layer.visible ? messages.layers.hide : messages.layers.show} ${layer.name}`}
+                            title={layer.visible ? messages.layers.hide : messages.layers.show}
                         >
                             {layer.visible ? "◉" : "○"}
                         </button>
@@ -99,40 +106,40 @@ export function LayersPanel({
 
             <div className="layer-hint">
                 <span className="hint-mark">i</span>
-                <p>筆觸只會修改目前選取的圖層。</p>
+                <p>{messages.layers.hint}</p>
             </div>
 
             <div className="symmetry-card">
                 <div className="symmetry-card-heading">
-                    <span>對稱軸</span>
+                    <span>{messages.layers.symmetryAxis}</span>
                     <label className="switch">
                         <input type="checkbox" checked={symmetryEnabled} onChange={onToggleSymmetry} />
                         <span />
                     </label>
                 </div>
-                <div className="symmetry-options" role="group" aria-label="對稱軸方向">
+                <div className="symmetry-options" role="group" aria-label={messages.layers.symmetryDirection}>
                     <button
                         type="button"
                         className={symmetry === "vertical" ? "selected" : ""}
                         onClick={() => {
                             onSetSymmetry("vertical");
-                            onSetSymmetryPosition(32);
+                            onSetSymmetryPosition(canvasWidth / 2);
                         }}
                     >
-                        <span>↕</span>垂直
+                        <span>↕</span>{messages.layers.vertical}
                     </button>
                     <button
                         type="button"
                         className={symmetry === "horizontal" ? "selected" : ""}
                         onClick={() => {
                             onSetSymmetry("horizontal");
-                            onSetSymmetryPosition(24);
+                            onSetSymmetryPosition(canvasHeight / 2);
                         }}
                     >
-                        <span>↔</span>水平
+                        <span>↔</span>{messages.layers.horizontal}
                     </button>
                 </div>
-                <p>拖曳畫布上的紅色虛線來移動</p>
+                <p>{messages.layers.moveAxisHint}</p>
             </div>
         </aside>
     );

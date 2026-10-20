@@ -1,12 +1,12 @@
 import { GRID_HEIGHT, GRID_WIDTH } from "../constants/pixelEditor";
 import type { Layer, Pixel, Point } from "../types/pixelEditor";
 
-export function blankPixels(): Pixel[][] {
-    return Array.from({ length: GRID_HEIGHT }, () => Array<Pixel>(GRID_WIDTH).fill(null));
+export function blankPixels(width = GRID_WIDTH, height = GRID_HEIGHT): Pixel[][] {
+    return Array.from({ length: height }, () => Array<Pixel>(width).fill(null));
 }
 
-export function makeLayer(id: string, name: string): Layer {
-    return { id, name, visible: true, pixels: blankPixels() };
+export function makeLayer(id: string, name: string, width = GRID_WIDTH, height = GRID_HEIGHT): Layer {
+    return { id, name, visible: true, pixels: blankPixels(width, height) };
 }
 
 export function linePoints(from: Point, to: Point): Point[] {
@@ -65,6 +65,28 @@ export function circlePoints(center: Point, edge: Point): Point[] {
     }
 
     return points;
+}
+
+export function circularBrushOffsets(size: number): Point[] {
+    const stampSize = Math.max(1, Math.round(size));
+    const stampOffset = Math.floor((stampSize - 1) / 2);
+    const center = { x: stampSize - 1, y: stampSize - 1 };
+    const boundary = circlePoints(center, { x: center.x + Math.max(1, stampSize), y: center.y });
+    const boundaryRadius = Math.max(...boundary.map((point) => Math.hypot(point.x - center.x, point.y - center.y)));
+    const radius = Math.min(boundaryRadius, stampSize - 0.5);
+    const offsets: Point[] = [];
+
+    for (let y = 0; y < stampSize; y += 1) {
+        for (let x = 0; x < stampSize; x += 1) {
+            const pixelCenterX = x * 2;
+            const pixelCenterY = y * 2;
+            if (Math.hypot(pixelCenterX - center.x, pixelCenterY - center.y) <= radius) {
+                offsets.push({ x: x - stampOffset, y: y - stampOffset });
+            }
+        }
+    }
+
+    return offsets;
 }
 
 export function rectanglePoints(from: Point, to: Point): Point[] {
