@@ -11,6 +11,9 @@ const zhHant = {
         label: "工作區導航",
         canvas: "畫布",
         export: "匯出",
+        exportSending: "傳送中…",
+        exportSuccess: "已傳送",
+        exportError: "傳送失敗",
         reserved: "預留功能",
     },
     settingsTrigger: {
@@ -110,6 +113,9 @@ const en: LocaleMessages = {
         label: "Workspace navigation",
         canvas: "Canvas",
         export: "Export",
+        exportSending: "Sending…",
+        exportSuccess: "Sent",
+        exportError: "Send failed",
         reserved: "Coming soon",
     },
     settingsTrigger: {

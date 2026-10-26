@@ -12,3 +12,12 @@ def home():
 @app.get("/api/hello")
 def hello():
     return {"message": "Hello from FastAPI"}
+
+
+@app.post("/api/export")
+def export_canvas(pixels: list[list[str | None]]):
+    return {
+        "received": True,
+        "width": len(pixels[0]) if pixels else 0,
+        "height": len(pixels),
+    }

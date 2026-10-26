@@ -101,6 +101,7 @@ function App() {
     const [selectionMovePreview, setSelectionMovePreview] = useState<SelectionMovePreview | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [listeningTool, setListeningTool] = useState<Tool | null>(null);
+    const [exportStatus, setExportStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
     const [shortcuts, setShortcuts] = useState<ShortcutMap>(() => {
         try {
             const saved = localStorage.getItem("embedpixel-shortcuts");
@@ -808,6 +809,33 @@ function App() {
         localStorage.setItem("embedpixel-shortcuts", JSON.stringify(defaults));
     }
 
+    async function exportCanvas() {
+        if (exportStatus === "sending") return;
+
+        const pixels = Array.from({ length: canvasSize.height }, (_, y) =>
+            Array.from({ length: canvasSize.width }, (_, x) => {
+                for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
+                    const layer = layers[layerIndex];
+                    const pixel = layer.visible ? layer.pixels[y]?.[x] : null;
+                    if (pixel) return pixel;
+                }
+                return null;
+            }),
+        );
+
+        setExportStatus("sending");
+        try {
+            const response = await fetch(import.meta.env.VITE_EXPORT_ENDPOINT || "/api/export", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(pixels),
+            });
+            setExportStatus(response.ok ? "success" : "error");
+        } catch {
+            setExportStatus("error");
+        }
+    }
+
     return (
         <main className="editor-shell">
             <header className="topbar">
@@ -822,9 +850,14 @@ function App() {
                     <button className="nav-tab active" type="button">
                         {messages.navigation.canvas}
                     </button>
-                    <button className="nav-tab" type="button" disabled title={messages.navigation.reserved}>
-                        {messages.navigation.export}
+                    <button className="nav-tab" type="button" onClick={exportCanvas} disabled={exportStatus === "sending"}>
+                        {exportStatus === "sending" ? messages.navigation.exportSending : messages.navigation.export}
                     </button>
+                    {exportStatus !== "idle" && (
+                        <span className={`export-status ${exportStatus}`} role="status" aria-live="polite">
+                            {messages.navigation[`export${exportStatus[0].toUpperCase()}${exportStatus.slice(1)}` as "exportSending" | "exportSuccess" | "exportError"]}
+                        </span>
+                    )}
                 </nav>
                 <button className="settings-trigger" type="button" onClick={() => setSettingsOpen(true)} aria-label={messages.settingsTrigger.label}>
                     ⚙ <span>{messages.settingsTrigger.text}</span>

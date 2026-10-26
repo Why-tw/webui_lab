@@ -100,6 +100,22 @@
     opacity: .43;
 }
 
+.export-status {
+    align-self: center;
+    margin-left: -14px;
+    color: var(--muted);
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.export-status.success {
+    color: var(--green);
+}
+
+.export-status.error {
+    color: var(--accent);
+}
+
 .settings-trigger {
     display: inline-flex;
     align-items: center;
@@ -219,7 +235,7 @@
 }
 
 .brush-size-control input {
-    width: 74px;
+    width: 148px;
     margin: 0;
     accent-color: var(--accent);
 }
