@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { CanvasWorkspace } from "./components/CanvasWorkspace";
+import { ExportDialog, type ExportFormat } from "./components/ExportDialog";
 import { LayersPanel } from "./components/LayersPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { ToolRail } from "./components/ToolRail";
@@ -100,6 +101,7 @@ function App() {
     const [selection, setSelection] = useState<Selection | null>(null);
     const [selectionMovePreview, setSelectionMovePreview] = useState<SelectionMovePreview | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [listeningTool, setListeningTool] = useState<Tool | null>(null);
     const [exportStatus, setExportStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
     const [shortcuts, setShortcuts] = useState<ShortcutMap>(() => {
@@ -809,11 +811,14 @@ function App() {
         localStorage.setItem("embedpixel-shortcuts", JSON.stringify(defaults));
     }
 
-    async function exportCanvas() {
+    async function exportCanvas(format: ExportFormat, target: string, fileName: string) {
         if (exportStatus === "sending") return;
 
         const pixels = Array.from({ length: canvasSize.height }, (_, y) =>
             Array.from({ length: canvasSize.width }, (_, x) => {
+                if (target !== "all") {
+                    return layers.find((layer) => layer.id === target)?.pixels[y]?.[x] ?? null;
+                }
                 for (let layerIndex = layers.length - 1; layerIndex >= 0; layerIndex -= 1) {
                     const layer = layers[layerIndex];
                     const pixel = layer.visible ? layer.pixels[y]?.[x] : null;
@@ -828,9 +833,22 @@ function App() {
             const response = await fetch(import.meta.env.VITE_EXPORT_ENDPOINT || "/api/export", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(pixels),
+                body: JSON.stringify({ format, pixels }),
             });
-            setExportStatus(response.ok ? "success" : "error");
+            if (!response.ok) {
+                setExportStatus("error");
+                return;
+            }
+
+            const downloadUrl = URL.createObjectURL(await response.blob());
+            const downloadLink = document.createElement("a");
+            downloadLink.href = downloadUrl;
+            const safeFileName = fileName.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/[. ]+$/, "") || "pixel-art";
+            downloadLink.download = `${safeFileName.replace(/\.svg$/i, "")}.svg`;
+            downloadLink.click();
+            URL.revokeObjectURL(downloadUrl);
+            setExportStatus("success");
+            setExportDialogOpen(false);
         } catch {
             setExportStatus("error");
         }
@@ -850,7 +868,7 @@ function App() {
                     <button className="nav-tab active" type="button">
                         {messages.navigation.canvas}
                     </button>
-                    <button className="nav-tab" type="button" onClick={exportCanvas} disabled={exportStatus === "sending"}>
+                    <button className="nav-tab" type="button" onClick={() => setExportDialogOpen(true)} disabled={exportStatus === "sending"}>
                         {exportStatus === "sending" ? messages.navigation.exportSending : messages.navigation.export}
                     </button>
                     {exportStatus !== "idle" && (
@@ -944,6 +962,15 @@ function App() {
                     onChangeLanguage={changeLanguage}
                     onSetListeningTool={setListeningTool}
                     onResetShortcuts={handleResetShortcuts}
+                />
+            )}
+            {exportDialogOpen && (
+                <ExportDialog
+                    layers={layers}
+                    messages={messages}
+                    sending={exportStatus === "sending"}
+                    onClose={() => setExportDialogOpen(false)}
+                    onExport={exportCanvas}
                 />
             )}
         </main>
