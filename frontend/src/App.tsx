@@ -843,8 +843,12 @@ function App() {
             const downloadUrl = URL.createObjectURL(await response.blob());
             const downloadLink = document.createElement("a");
             downloadLink.href = downloadUrl;
-            const safeFileName = fileName.trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").replace(/[. ]+$/, "") || "pixel-art";
-            downloadLink.download = `${safeFileName.replace(/\.svg$/i, "")}.svg`;
+            const safeFileName = Array.from(fileName.trim())
+                .filter((character) => character.charCodeAt(0) >= 32)
+                .join("")
+                .replace(/[<>:"/\\|?*]/g, "-")
+                .replace(/[. ]+$/, "") || "pixel-art";
+            downloadLink.download = `${safeFileName.replace(/\.(svg|png|bmp)$/i, "")}.${format.toLowerCase()}`;
             downloadLink.click();
             URL.revokeObjectURL(downloadUrl);
             setExportStatus("success");

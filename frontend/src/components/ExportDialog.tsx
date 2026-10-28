@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Messages } from "../resources/locales";
 import type { Layer } from "../types/pixelEditor";
 
-export type ExportFormat = "SVG";
+export type ExportFormat = "SVG" | "PNG" | "BMP";
 
 type ExportDialogProps = {
     layers: Layer[];
@@ -13,7 +13,7 @@ type ExportDialogProps = {
 };
 
 export function ExportDialog({ layers, messages, sending, onClose, onExport }: ExportDialogProps) {
-    const [format] = useState<ExportFormat>("SVG");
+    const [format, setFormat] = useState<ExportFormat>("SVG");
     const [target, setTarget] = useState("all");
     const [fileName, setFileName] = useState("pixel-art");
 
@@ -60,8 +60,10 @@ export function ExportDialog({ layers, messages, sending, onClose, onExport }: E
 
                     <label className="export-field" htmlFor="export-format">
                         <span>{messages.exportDialog.format}</span>
-                        <select id="export-format" value={format} disabled>
+                        <select id="export-format" value={format} onChange={(event) => setFormat(event.target.value as ExportFormat)} disabled={sending}>
                             <option value="SVG">SVG</option>
+                            <option value="PNG">PNG</option>
+                            <option value="BMP">BMP</option>
                         </select>
                     </label>
 

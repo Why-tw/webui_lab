@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 from typing import Literal
 
+from tools.pixel_array_to_raster import pixel_array_to_raster
 from tools.pixel_array_to_svg import pixel_array_to_svg
 
 app = FastAPI()
@@ -24,16 +25,18 @@ def hello():
 
 @app.post("/api/export")
 def export_canvas(request: ExportRequest):
-    if request.format != "SVG":
-        raise HTTPException(status_code=501, detail="Only SVG export is supported")
-
     try:
-        svg = pixel_array_to_svg(request.pixels)
+        if request.format == "SVG":
+            content = pixel_array_to_svg(request.pixels)
+            media_type = "image/svg+xml"
+        else:
+            content = pixel_array_to_raster(request.pixels, request.format)
+            media_type = f"image/{request.format.lower()}"
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
     return Response(
-        content=svg,
-        media_type="image/svg+xml",
-        headers={"Content-Disposition": 'attachment; filename="pixel-art.svg"'},
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="pixel-art.{request.format.lower()}"'},
     )

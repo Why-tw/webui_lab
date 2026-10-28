@@ -5,6 +5,7 @@ anyio==4.15.1
 caio==0.12.9
 click==8.5.0
 fastapi==0.142.2
+Pillow
 h11==0.16.0
 idna==3.20
 opentelemetry-api==1.45.0
