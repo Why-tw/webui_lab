@@ -100,6 +100,142 @@
     opacity: .43;
 }
 
+.projects-page {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: clamp(28px, 6vw, 72px);
+    background: #f8f8f3;
+}
+
+.projects-heading {
+    max-width: 1040px;
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 24px;
+    margin: 0 auto 30px;
+}
+
+.projects-heading h1 {
+    margin: 8px 0;
+    font-family: Georgia, serif;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 500;
+}
+
+.projects-heading p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.new-project-form {
+    display: flex;
+    gap: 8px;
+}
+
+.new-project-form input {
+    width: 190px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--paper);
+}
+
+.new-project-form button {
+    padding: 10px 14px;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: white;
+    background: var(--accent);
+    white-space: nowrap;
+}
+
+.project-storage-error {
+    max-width: 1040px;
+    margin: 0 auto 18px;
+    color: #a64d3d;
+}
+
+.project-list {
+    max-width: 1040px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 16px;
+    margin: 0 auto;
+}
+
+.project-card {
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--ink);
+    background: var(--paper);
+    text-align: left;
+}
+
+.project-card:hover {
+    border-color: #c9a49a;
+    box-shadow: 0 5px 18px rgba(49, 50, 43, .08);
+}
+
+.project-card-art {
+    height: 142px;
+    display: grid;
+    place-content: center;
+    grid-template-columns: repeat(2, 22px);
+    grid-template-rows: repeat(2, 22px);
+    gap: 3px;
+    background-color: #f1f0e9;
+    background-image: linear-gradient(45deg, #e6e5dc 25%, transparent 25%), linear-gradient(-45deg, #e6e5dc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e6e5dc 75%), linear-gradient(-45deg, transparent 75%, #e6e5dc 75%);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+}
+
+.project-card-art span {
+    background: #d8644e;
+}
+
+.project-card-art span:nth-child(2) {
+    background: #e9aa36;
+}
+
+.project-card-art span:nth-child(3) {
+    background: #4d9b71;
+}
+
+.project-card-art span:nth-child(4) {
+    background: #4389bd;
+}
+
+.project-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 14px 15px 16px;
+}
+
+.project-card-details strong {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-card-details span,
+.project-card-open {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.project-card-open {
+    display: block;
+    padding: 0 15px 14px;
+    color: var(--accent);
+}
+
 .export-status {
     align-self: center;
     margin-left: -14px;
@@ -270,6 +406,35 @@
 .color-swatches[data-color-count="16"] .swatch {
     width: 20px;
     height: 20px;
+}
+
+.color-add-control {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin: 10px 0 0;
+}
+
+.color-add-control input {
+    width: 24px;
+    height: 24px;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+}
+
+.color-add-control button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: #555950;
+    background: #fffefa;
+    font-size: 16px;
+    line-height: 1;
 }
 
 .swatch.chosen {
@@ -471,6 +636,7 @@
 
 .drawing-canvas {
     display: block;
+    image-rendering: pixelated;
 }
 
 .canvas-status {
@@ -1076,7 +1242,7 @@ input:focus-visible {
         font-size: 10px;
     }
 
-    .nav-tab:not(.active) {
+    .nav-tab:not(.active):not(.projects-tab):not(.canvas-tab) {
         display: none;
     }
 
@@ -1086,6 +1252,26 @@ input:focus-visible {
 
     .settings-trigger span {
         display: none;
+    }
+
+    .projects-page {
+        padding: 26px 16px;
+    }
+
+    .projects-heading {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 18px;
+        margin-bottom: 22px;
+    }
+
+    .new-project-form input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .project-list {
+        grid-template-columns: 1fr;
     }
 
     .editor-body {
@@ -1151,6 +1337,11 @@ input:focus-visible {
 
     .color-swatches[data-color-count="16"] {
         grid-template-columns: repeat(4, 1fr);
+    }
+
+    .color-add-control {
+        flex: 0 0 auto;
+        margin: 0 4px;
     }
 
     .swatch {

@@ -16,13 +16,11 @@ type SettingsDialogProps = {
 };
 
 export function SettingsDialog({
-    gridVisible,
     language,
     messages,
     shortcuts,
     listeningTool,
     onClose,
-    onToggleGrid,
     onChangeLanguage,
     onSetListeningTool,
     onResetShortcuts,
@@ -53,17 +51,6 @@ export function SettingsDialog({
                                 <option key={option.id} value={option.id}>{option.label}</option>
                             ))}
                         </select>
-                    </label>
-                </div>
-
-                <div className="settings-section">
-                    <h3>{messages.settings.workspace}</h3>
-                    <label className="setting-row">
-                        <span>
-                            <strong>{messages.settings.pixelGrid}</strong>
-                            <small>{messages.settings.pixelGridHint}</small>
-                        </span>
-                        <input type="checkbox" checked={gridVisible} onChange={(event) => onToggleGrid(event.target.checked)} />
                     </label>
                 </div>
 

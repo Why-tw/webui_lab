@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CSSProperties } from "react";
 
 import { TOOLS } from "../constants/pixelEditor";
@@ -9,13 +10,27 @@ type ToolRailProps = {
     activeTool: Tool;
     color: string;
     colors: string[];
+    allowCustomColors: boolean;
     shortcuts: ShortcutMap;
     messages: Messages;
     onSelectTool: (tool: Tool) => void;
     onSelectColor: (color: string) => void;
+    onAddColor: (color: string) => void;
 };
 
-export function ToolRail({ activeTool, color, colors, shortcuts, messages, onSelectTool, onSelectColor }: ToolRailProps) {
+export function ToolRail({
+    activeTool,
+    color,
+    colors,
+    allowCustomColors,
+    shortcuts,
+    messages,
+    onSelectTool,
+    onSelectColor,
+    onAddColor,
+}: ToolRailProps) {
+    const [newColor, setNewColor] = useState("#e85d75");
+
     return (
         <aside className="tool-rail" aria-label={messages.toolRail.label}>
             <div className="rail-caption">{messages.toolRail.caption}</div>
@@ -50,6 +65,25 @@ export function ToolRail({ activeTool, color, colors, shortcuts, messages, onSel
                     />
                 ))}
             </div>
+            {allowCustomColors && (
+                <div className="color-add-control">
+                    <input
+                        type="color"
+                        value={newColor}
+                        onChange={(event) => setNewColor(event.target.value)}
+                        aria-label={messages.toolRail.addColor}
+                        title={messages.toolRail.addColor}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => onAddColor(newColor)}
+                        aria-label={messages.toolRail.addColor}
+                        title={messages.toolRail.addColor}
+                    >
+                        +
+                    </button>
+                </div>
+            )}
             <div className="current-color">
                 <span style={{ backgroundColor: color }} />
                 {messages.toolRail.currentColor}

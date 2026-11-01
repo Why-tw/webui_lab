@@ -69,7 +69,7 @@ export function circlePoints(center: Point, edge: Point): Point[] {
 
 export function circularBrushOffsets(size: number): Point[] {
     const stampSize = Math.max(1, Math.round(size));
-    const stampOffset = Math.floor((stampSize - 1) / 2);
+    const stampOffset = Math.floor(stampSize / 2);
     const center = { x: stampSize - 1, y: stampSize - 1 };
     const boundary = circlePoints(center, { x: center.x + Math.max(1, stampSize), y: center.y });
     const boundaryRadius = Math.max(...boundary.map((point) => Math.hypot(point.x - center.x, point.y - center.y)));

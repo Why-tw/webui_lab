@@ -3,9 +3,9 @@ import type { Tool } from "../types/pixelEditor";
 export const GRID_WIDTH = 64;
 export const GRID_HEIGHT = 48;
 export const CELL_SIZE = 16;
-export const MIN_ZOOM = 0.5;
-export const MAX_ZOOM = 8;
-export const MAX_CUSTOM_DIMENSION = 512;
+export const MIN_ZOOM = 0.05;
+export const MAX_ZOOM = 12;
+export const MAX_CUSTOM_DIMENSION = 1024;
 
 export type DisplayProfile = "custom" | "ssd1306" | "ssd1327";
 

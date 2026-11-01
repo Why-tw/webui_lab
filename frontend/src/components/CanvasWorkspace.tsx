@@ -32,6 +32,7 @@ type CanvasWorkspaceProps = {
     onPointerMove: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
     onPointerUp: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
     onPointerCancel: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
+    onPointerLeave: () => void;
     onToggleGrid: () => void;
     onToggleSymmetry: () => void;
     onSymmetryChange: (nextSymmetry: Symmetry) => void;
@@ -49,7 +50,6 @@ export function CanvasWorkspace({
     onBrushSizeChange,
     activeLayerName,
     messages,
-    gridVisible,
     displayProfile,
     canvasWidth,
     canvasHeight,
@@ -67,7 +67,7 @@ export function CanvasWorkspace({
     onPointerMove,
     onPointerUp,
     onPointerCancel,
-    onToggleGrid,
+    onPointerLeave,
     onToggleSymmetry,
     onSymmetryChange,
     onZoomOut,
@@ -103,7 +103,7 @@ export function CanvasWorkspace({
                                 id="brush-size"
                                 type="range"
                                 min={1}
-                                max={8}
+                                max={12}
                                 step={1}
                                 value={brushSize}
                                 onChange={(event) => onBrushSizeChange(Number(event.target.value))}
@@ -140,7 +140,7 @@ export function CanvasWorkspace({
                                     aria-label={messages.canvas.width}
                                     onBlur={applyCustomSize}
                                     onKeyDown={(event) => {
-                                        if (event.key === "Enter") event.currentTarget.blur();
+                                        if (event.key === "Enter" || event.key === "Escape") event.currentTarget.blur();
                                     }}
                                 />
                             </label>
@@ -155,7 +155,7 @@ export function CanvasWorkspace({
                                     aria-label={messages.canvas.height}
                                     onBlur={applyCustomSize}
                                     onKeyDown={(event) => {
-                                        if (event.key === "Enter") event.currentTarget.blur();
+                                        if (event.key === "Enter" || event.key === "Escape") event.currentTarget.blur();
                                     }}
                                 />
                             </label>
@@ -189,15 +189,6 @@ export function CanvasWorkspace({
                         <option value="horizontal">{messages.canvas.horizontalAxis}</option>
                     </select>
                     <span className="action-divider" />
-                    <button
-                        type="button"
-                        className={`grid-toggle ${gridVisible ? "on" : ""}`}
-                        onClick={onToggleGrid}
-                        aria-pressed={gridVisible}
-                        title={messages.canvas.gridTitle}
-                    >
-                        ▦
-                    </button>
                     <button type="button" onClick={onZoomOut} aria-label={messages.canvas.zoomOut}>
                         −
                     </button>
@@ -218,13 +209,20 @@ export function CanvasWorkspace({
                         style={{
                             width: canvasWidth * CELL_SIZE * zoom,
                             height: canvasHeight * CELL_SIZE * zoom,
+                            backgroundSize: `${CELL_SIZE * zoom * 2}px ${CELL_SIZE * zoom * 2}px`,
+                            backgroundPosition: [
+                                "0 0",
+                                `0 ${CELL_SIZE * zoom}px`,
+                                `${CELL_SIZE * zoom}px -${CELL_SIZE * zoom}px`,
+                                `-${CELL_SIZE * zoom}px 0`,
+                            ].join(", "),
                         }}
                     >
                         <canvas
                             ref={canvasRef}
                             className="drawing-canvas"
-                            width={canvasWidth * CELL_SIZE}
-                            height={canvasHeight * CELL_SIZE}
+                            width={canvasWidth}
+                            height={canvasHeight}
                             style={{
                                 width: "100%",
                                 height: "100%",
@@ -235,6 +233,7 @@ export function CanvasWorkspace({
                             onPointerMove={onPointerMove}
                             onPointerUp={onPointerUp}
                             onPointerCancel={onPointerCancel}
+                            onPointerLeave={onPointerLeave}
                         />
                     </div>
                 </div>
