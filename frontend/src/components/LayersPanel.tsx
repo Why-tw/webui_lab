@@ -1,5 +1,6 @@
 import type { Layer } from "../types/pixelEditor";
 import type { Messages } from "../resources/locales";
+import { CanvasPreview } from "./CanvasPreview";
 
 type LayersPanelProps = {
     layers: Layer[];
@@ -12,6 +13,10 @@ type LayersPanelProps = {
     onMoveActiveLayer: (direction: -1 | 1) => void;
     onSetActiveLayer: (id: string) => void;
     onToggleLayerVisibility: (id: string) => void;
+    onExport: () => void;
+    exportLabel: string;
+    exportDisabled: boolean;
+    exportStatus?: { label: string; state: "sending" | "success" | "error" };
     symmetryEnabled: boolean;
     symmetry: "vertical" | "horizontal";
     onSetSymmetry: (value: "vertical" | "horizontal") => void;
@@ -30,11 +35,10 @@ export function LayersPanel({
     onMoveActiveLayer,
     onSetActiveLayer,
     onToggleLayerVisibility,
-    symmetryEnabled,
-    symmetry,
-    onSetSymmetry,
-    onSetSymmetryPosition,
-    onToggleSymmetry,
+    onExport,
+    exportLabel,
+    exportDisabled,
+    exportStatus,
 }: LayersPanelProps) {
     const activeIndex = layers.findIndex((layer) => layer.id === activeLayerId);
 
@@ -95,7 +99,13 @@ export function LayersPanel({
                             aria-pressed={layer.id === activeLayerId}
                         >
                             <span className="layer-thumb">
-                                <span style={{ background: layer.pixels.flat().find(Boolean) ?? "transparent" }} />
+                                <CanvasPreview
+                                    layers={[layer]}
+                                    width={canvasWidth}
+                                    height={canvasHeight}
+                                    className="layer-thumb-canvas"
+                                    visibleLayersOnly={false}
+                                />
                             </span>
                             <span className="layer-name">{layer.name}</span>
                         </button>
@@ -103,43 +113,19 @@ export function LayersPanel({
                     </div>
                 ))}
             </div>
-
             <div className="layer-hint">
                 <span className="hint-mark">i</span>
                 <p>{messages.layers.hint}</p>
             </div>
-
-            <div className="symmetry-card">
-                <div className="symmetry-card-heading">
-                    <span>{messages.layers.symmetryAxis}</span>
-                    <label className="switch">
-                        <input type="checkbox" checked={symmetryEnabled} onChange={onToggleSymmetry} />
-                        <span />
-                    </label>
-                </div>
-                <div className="symmetry-options" role="group" aria-label={messages.layers.symmetryDirection}>
-                    <button
-                        type="button"
-                        className={symmetry === "vertical" ? "selected" : ""}
-                        onClick={() => {
-                            onSetSymmetry("vertical");
-                            onSetSymmetryPosition(canvasWidth / 2);
-                        }}
-                    >
-                        <span>↕</span>{messages.layers.vertical}
-                    </button>
-                    <button
-                        type="button"
-                        className={symmetry === "horizontal" ? "selected" : ""}
-                        onClick={() => {
-                            onSetSymmetry("horizontal");
-                            onSetSymmetryPosition(canvasHeight / 2);
-                        }}
-                    >
-                        <span>↔</span>{messages.layers.horizontal}
-                    </button>
-                </div>
-                <p>{messages.layers.moveAxisHint}</p>
+            <div className="layers-panel-footer">
+                {exportStatus && (
+                    <span className={`export-status ${exportStatus.state}`} role="status" aria-live="polite">
+                        {exportStatus.label}
+                    </span>
+                )}
+                <button className="layers-export-button" type="button" onClick={onExport} disabled={exportDisabled}>
+                    {exportLabel}
+                </button>
             </div>
         </aside>
     );

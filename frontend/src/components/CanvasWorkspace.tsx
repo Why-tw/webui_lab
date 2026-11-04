@@ -3,12 +3,13 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import { CELL_SIZE, MAX_CUSTOM_DIMENSION, type DisplayProfile } from "../constants/pixelEditor";
 import { formatMessage, type Messages } from "../resources/locales";
-import type { Symmetry } from "../types/pixelEditor";
+import type { Selection, Symmetry } from "../types/pixelEditor";
 
 type CanvasWorkspaceProps = {
     canvasRef: RefObject<HTMLCanvasElement | null>;
     viewportRef: RefObject<HTMLDivElement | null>;
     activeTool: string;
+    selectionToolActive: boolean;
     showBrushSize: boolean;
     brushSize: number;
     onBrushSizeChange: (size: number) => void;
@@ -18,8 +19,10 @@ type CanvasWorkspaceProps = {
     displayProfile: DisplayProfile;
     canvasWidth: number;
     canvasHeight: number;
+    selectionPreview: Selection | null;
     onChangeDisplayProfile: (profile: DisplayProfile) => void;
     onCustomSizeChange: (width: number, height: number) => void;
+    onClearCanvas: () => void;
     canUndo: boolean;
     canRedo: boolean;
     onUndo: () => void;
@@ -45,6 +48,7 @@ export function CanvasWorkspace({
     canvasRef,
     viewportRef,
     activeTool,
+    selectionToolActive,
     showBrushSize,
     brushSize,
     onBrushSizeChange,
@@ -53,8 +57,10 @@ export function CanvasWorkspace({
     displayProfile,
     canvasWidth,
     canvasHeight,
+    selectionPreview,
     onChangeDisplayProfile,
     onCustomSizeChange,
+    onClearCanvas,
     canUndo,
     canRedo,
     onUndo,
@@ -161,6 +167,15 @@ export function CanvasWorkspace({
                             </label>
                         </div>
                     )}
+                    <button
+                        type="button"
+                        className="clear-canvas-button"
+                        onClick={onClearCanvas}
+                        aria-label={messages.canvas.clear}
+                        title={messages.canvas.clear}
+                    >
+                        {messages.canvas.clear}
+                    </button>
                     <span className="action-divider" />
                     <button type="button" onClick={onUndo} disabled={!canUndo} aria-label={messages.canvas.undo} title={`${messages.canvas.undo} (Ctrl+Z)`}>
                         ↶
@@ -235,6 +250,19 @@ export function CanvasWorkspace({
                             onPointerCancel={onPointerCancel}
                             onPointerLeave={onPointerLeave}
                         />
+                        {selectionPreview && selectionToolActive && (
+                            <div
+                                className="selection-outline-preview"
+                                aria-hidden="true"
+                                style={{
+                                    left: selectionPreview.x * CELL_SIZE * zoom,
+                                    top: selectionPreview.y * CELL_SIZE * zoom,
+                                    width: selectionPreview.width * CELL_SIZE * zoom,
+                                    height: selectionPreview.height * CELL_SIZE * zoom,
+                                    border: `${Math.min(2, Math.max(0.5, CELL_SIZE * zoom * 0.12))}px dashed #222`,
+                                }}
+                            />
+                        )}
                     </div>
                 </div>
             </div>

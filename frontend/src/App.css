@@ -166,8 +166,8 @@
 }
 
 .project-card {
+    position: relative;
     min-width: 0;
-    padding: 0;
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 4px;
@@ -181,33 +181,50 @@
     box-shadow: 0 5px 18px rgba(49, 50, 43, .08);
 }
 
+.project-card-open-button {
+    width: 100%;
+    display: block;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    text-align: left;
+}
+
+.project-card-more {
+    position: absolute;
+    top: 9px;
+    right: 9px;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(39, 41, 37, .1);
+    border-radius: 50%;
+    color: var(--ink);
+    background: rgba(255, 254, 250, .94);
+    font-size: 19px;
+    line-height: 1;
+}
+
+.project-card-more:hover {
+    background: white;
+}
+
 .project-card-art {
     height: 142px;
     display: grid;
     place-content: center;
-    grid-template-columns: repeat(2, 22px);
-    grid-template-rows: repeat(2, 22px);
-    gap: 3px;
     background-color: #f1f0e9;
     background-image: linear-gradient(45deg, #e6e5dc 25%, transparent 25%), linear-gradient(-45deg, #e6e5dc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e6e5dc 75%), linear-gradient(-45deg, transparent 75%, #e6e5dc 75%);
     background-position: 0 0, 0 8px, 8px -8px, -8px 0;
     background-size: 16px 16px;
 }
 
-.project-card-art span {
-    background: #d8644e;
-}
-
-.project-card-art span:nth-child(2) {
-    background: #e9aa36;
-}
-
-.project-card-art span:nth-child(3) {
-    background: #4d9b71;
-}
-
-.project-card-art span:nth-child(4) {
-    background: #4389bd;
+.project-canvas-preview {
+    max-width: 100%;
+    max-height: 100%;
+    image-rendering: pixelated;
 }
 
 .project-card-details {
@@ -234,6 +251,110 @@
     display: block;
     padding: 0 15px 14px;
     color: var(--accent);
+}
+
+.project-menu-dismiss {
+    position: fixed;
+    z-index: 20;
+    inset: 0;
+}
+
+.project-context-menu {
+    position: fixed;
+    z-index: 21;
+    width: 172px;
+    padding: 5px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--paper);
+    box-shadow: 0 8px 26px rgba(39, 41, 37, .16);
+}
+
+.project-context-menu button {
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
+    text-align: left;
+}
+
+.project-context-menu button:hover {
+    background: var(--panel);
+}
+
+.project-context-menu .danger,
+.project-dialog-actions .danger {
+    color: #b54636;
+}
+
+.project-dialog {
+    width: min(420px, calc(100vw - 32px));
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--paper);
+    box-shadow: 0 16px 48px rgba(39, 41, 37, .18);
+}
+
+.project-dialog h2 {
+    margin: 0 0 20px;
+    font-family: Georgia, serif;
+    font-size: 21px;
+    font-weight: 500;
+}
+
+.project-dialog form label {
+    display: grid;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.project-dialog input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--ink);
+    background: white;
+}
+
+.project-details-list {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    margin: 0;
+}
+
+.project-details-list dt {
+    color: var(--muted);
+}
+
+.project-details-list dd {
+    margin: 0;
+    text-align: right;
+}
+
+.project-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+}
+
+.project-dialog-actions button {
+    padding: 8px 13px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--ink);
+    background: white;
+}
+
+.project-dialog-actions button.primary {
+    border-color: var(--accent);
+    color: white;
+    background: var(--accent);
 }
 
 .export-status {
@@ -586,6 +707,15 @@
     background: #fff0eb;
 }
 
+.canvas-actions .clear-canvas-button {
+    color: #a64d3d;
+}
+
+.canvas-actions .clear-canvas-button:hover {
+    border-color: #dfb4aa;
+    background: #fff0eb;
+}
+
 .canvas-actions select {
     max-width: 84px;
     padding: 0 3px;
@@ -637,6 +767,13 @@
 .drawing-canvas {
     display: block;
     image-rendering: pixelated;
+}
+
+.selection-outline-preview {
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    pointer-events: none;
 }
 
 .canvas-status {
@@ -797,9 +934,10 @@
     background-size: 8px 8px;
 }
 
-.layer-thumb span {
-    width: 9px;
-    height: 9px;
+.layer-thumb-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    image-rendering: pixelated;
 }
 
 .layer-name {
@@ -837,6 +975,40 @@
 .layer-hint p {
     font-size: 10px;
     line-height: 1.5;
+}
+
+.layers-panel-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 12px;
+}
+
+.layers-panel-footer .export-status {
+    align-self: flex-start;
+    margin: 0;
+}
+
+.layers-export-button {
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    color: white;
+    background: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.layers-export-button:hover:not(:disabled) {
+    background: #c95743;
+}
+
+.layers-export-button:disabled {
+    cursor: default;
+    opacity: .6;
 }
 
 .symmetry-card {
@@ -896,32 +1068,6 @@
 
 .switch input:checked+span::after {
     transform: translateX(13px);
-}
-
-.symmetry-options {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
-    margin-top: 12px;
-}
-
-.symmetry-options button {
-    height: 31px;
-    border: 1px solid #e5e5dd;
-    color: #74766e;
-    background: #fffefa;
-    font-size: 10px;
-}
-
-.symmetry-options button span {
-    margin-right: 5px;
-    font-size: 14px;
-}
-
-.symmetry-options button.selected {
-    border-color: #c9d7ca;
-    color: #45664f;
-    background: #f1f7f0;
 }
 
 .symmetry-card>p {
@@ -1200,6 +1346,13 @@ input:focus-visible {
         display: none;
     }
 
+    .layers-panel-footer {
+        grid-column: 3;
+        grid-row: 1 / span 2;
+        align-self: end;
+        padding: 0;
+    }
+
     .symmetry-card {
         grid-column: 3;
         grid-row: 1 / span 2;
@@ -1453,6 +1606,12 @@ input:focus-visible {
     .layer-list {
         order: 1;
         min-height: 38px;
+    }
+
+    .layers-panel-footer {
+        order: 3;
+        margin-top: 0;
+        padding-top: 4px;
     }
 
     .layer-row {
