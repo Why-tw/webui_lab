@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { CSSProperties } from "react";
 
 import { TOOLS } from "../constants/pixelEditor";
@@ -16,6 +15,7 @@ type ToolRailProps = {
     onSelectTool: (tool: Tool) => void;
     onSelectColor: (color: string) => void;
     onAddColor: (color: string) => void;
+    onRemoveColor: () => void;
 };
 
 export function ToolRail({
@@ -28,9 +28,8 @@ export function ToolRail({
     onSelectTool,
     onSelectColor,
     onAddColor,
+    onRemoveColor,
 }: ToolRailProps) {
-    const [newColor, setNewColor] = useState("#e85d75");
-
     return (
         <aside className="tool-rail" aria-label={messages.toolRail.label}>
             <div className="rail-caption">{messages.toolRail.caption}</div>
@@ -68,26 +67,34 @@ export function ToolRail({
             {allowCustomColors && (
                 <div className="color-add-control">
                     <input
+                        className="color-picker"
                         type="color"
-                        value={newColor}
-                        onChange={(event) => setNewColor(event.target.value)}
-                        aria-label={messages.toolRail.addColor}
-                        title={messages.toolRail.addColor}
+                        value={color}
+                        onChange={(event) => onSelectColor(event.target.value)}
+                        aria-label={messages.toolRail.currentColor}
+                        title={messages.toolRail.currentColor}
                     />
-                    <button
-                        type="button"
-                        onClick={() => onAddColor(newColor)}
-                        aria-label={messages.toolRail.addColor}
-                        title={messages.toolRail.addColor}
-                    >
-                        +
-                    </button>
+                    <div className="color-add-actions">
+                        <button
+                            type="button"
+                            onClick={() => onAddColor(color)}
+                            aria-label={messages.toolRail.addColor}
+                            title={messages.toolRail.addColor}
+                        >
+                            +
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onRemoveColor}
+                            disabled={colors.length <= 1 || !colors.includes(color)}
+                            aria-label={messages.toolRail.removeColor}
+                            title={messages.toolRail.removeColor}
+                        >
+                            −
+                        </button>
+                    </div>
                 </div>
             )}
-            <div className="current-color">
-                <span style={{ backgroundColor: color }} />
-                {messages.toolRail.currentColor}
-            </div>
         </aside>
     );
 }

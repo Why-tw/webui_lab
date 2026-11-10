@@ -113,10 +113,6 @@ export function LayersPanel({
                     </div>
                 ))}
             </div>
-            <div className="layer-hint">
-                <span className="hint-mark">i</span>
-                <p>{messages.layers.hint}</p>
-            </div>
             <div className="layers-panel-footer">
                 {exportStatus && (
                     <span className={`export-status ${exportStatus.state}`} role="status" aria-live="polite">

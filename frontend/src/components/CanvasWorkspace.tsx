@@ -15,6 +15,8 @@ type CanvasWorkspaceProps = {
     onBrushSizeChange: (size: number) => void;
     activeLayerName?: string;
     messages: Messages;
+    layersPanelVisible: boolean;
+    onToggleLayersPanel: () => void;
     gridVisible: boolean;
     displayProfile: DisplayProfile;
     canvasWidth: number;
@@ -54,6 +56,8 @@ export function CanvasWorkspace({
     onBrushSizeChange,
     activeLayerName,
     messages,
+    layersPanelVisible,
+    onToggleLayersPanel,
     displayProfile,
     canvasWidth,
     canvasHeight,
@@ -120,6 +124,17 @@ export function CanvasWorkspace({
                     )}
                 </div>
                 <div className="canvas-actions">
+                    <button
+                        type="button"
+                        className={`layer-panel-toggle ${layersPanelVisible ? "on" : ""}`}
+                        onClick={onToggleLayersPanel}
+                        aria-label={layersPanelVisible ? messages.layers.hidePanel : messages.layers.showPanel}
+                        aria-expanded={layersPanelVisible}
+                        title={layersPanelVisible ? messages.layers.hidePanel : messages.layers.showPanel}
+                    >
+                        ▤ <span>{messages.layers.heading}</span>
+                    </button>
+                    <span className="action-divider" />
                     <label className="display-profile-control">
                         <span>{messages.canvas.displayProfile}</span>
                         <select

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { CanvasWorkspace } from "./components/CanvasWorkspace";
+import { CommunityPage } from "./components/CommunityPage";
 import { ExportDialog, type ExportFormat } from "./components/ExportDialog";
 import { LayersPanel } from "./components/LayersPanel";
 import { ProjectsPage } from "./components/ProjectsPage";
@@ -182,7 +183,8 @@ function App() {
   const [projects, setProjects] = useState(initialProjectState.projects);
   const [projectStorageError, setProjectStorageError] = useState(initialProjectState.storageError);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState<"projects" | "canvas">("projects");
+  const [currentPage, setCurrentPage] = useState<"projects" | "community" | "canvas">("projects");
+  const [layersPanelVisible, setLayersPanelVisible] = useState(true);
   const [zoom, setZoom] = useState(1);
   const [displayProfile, setDisplayProfile] = useState<DisplayProfile>("custom");
   const [canvasSize, setCanvasSize] = useState({ width: GRID_WIDTH, height: GRID_HEIGHT });
@@ -258,6 +260,15 @@ function App() {
     setCurrentPage("projects");
   }
 
+  function showCommunity() {
+    if (activeProjectId) {
+      setProjects((current) => current.map((project) => project.id === activeProjectId
+        ? { ...project, canvasSize, displayProfile, layers, activeLayerId, customColors, color }
+        : project));
+    }
+    setCurrentPage("community");
+  }
+
   function openProject(project: Project) {
     historyRef.current = project.history
       ? { past: [...project.history.past], future: [...project.history.future] }
@@ -312,6 +323,14 @@ function App() {
   function addCustomColor(nextColor: string) {
     setCustomColors((current) => current.includes(nextColor) ? current : [...current, nextColor]);
     setColor(nextColor);
+  }
+
+  function removeCustomColor() {
+    const nextColors = customColors.filter((customColor) => customColor !== color);
+    if (nextColors.length === customColors.length || nextColors.length === 0) return;
+
+    setCustomColors(nextColors);
+    setColor(nextColors[0]);
   }
 
   const updateHistoryState = useCallback(() => {
@@ -1132,7 +1151,9 @@ function App() {
           EP<span>.</span>
         </a>
         <div className="document-title">
-          <strong>{activeProject?.name ?? messages.projects.title}</strong>
+          <strong>{currentPage === "canvas" && activeProject
+            ? activeProject.name
+            : currentPage === "community" ? messages.community.title : messages.projects.title}</strong>
           {activeProject && <span>{formatMessage(messages.document.dimensions, canvasSize)}</span>}
         </div>
         <nav className="workspace-nav" aria-label={messages.navigation.label}>
@@ -1153,6 +1174,14 @@ function App() {
           >
             {messages.navigation.canvas}
           </button>
+          <button
+            className={`nav-tab community-tab ${currentPage === "community" ? "active" : ""}`}
+            type="button"
+            onClick={showCommunity}
+            aria-current={currentPage === "community" ? "page" : undefined}
+          >
+            {messages.navigation.community}
+          </button>
         </nav>
         <button className="settings-trigger" type="button" onClick={() => setSettingsOpen(true)} aria-label={messages.settingsTrigger.label}>
           ⚙ <span>{messages.settingsTrigger.text}</span>
@@ -1169,8 +1198,10 @@ function App() {
           onDeleteProject={deleteProject}
           onRenameProject={renameProject}
         />
+      ) : currentPage === "community" ? (
+        <CommunityPage messages={messages.community} />
       ) : (
-        <div className="editor-body">
+        <div className={`editor-body ${layersPanelVisible ? "" : "layers-panel-hidden"}`}>
           <ToolRail
             activeTool={activeTool}
             color={color}
@@ -1180,6 +1211,7 @@ function App() {
             messages={messages}
             onSelectColor={setColor}
             onAddColor={addCustomColor}
+            onRemoveColor={removeCustomColor}
             onSelectTool={changeActiveTool}
           />
 
@@ -1193,6 +1225,8 @@ function App() {
             onBrushSizeChange={setBrushSize}
             activeLayerName={activeLayer?.name}
             messages={messages}
+            layersPanelVisible={layersPanelVisible}
+            onToggleLayersPanel={() => setLayersPanelVisible((visible) => !visible)}
             gridVisible={gridVisible}
             displayProfile={displayProfile}
             canvasWidth={canvasSize.width}
@@ -1233,30 +1267,32 @@ function App() {
             onResetZoom={resetZoom}
           />
 
-          <LayersPanel
-            layers={layers}
-            messages={messages}
-            canvasWidth={canvasSize.width}
-            canvasHeight={canvasSize.height}
-            activeLayerId={activeLayerId}
-            onAddLayer={addLayer}
-            onDeleteActiveLayer={deleteActiveLayer}
-            onMoveActiveLayer={moveActiveLayer}
-            onSetActiveLayer={setActiveLayerId}
-            onToggleLayerVisibility={toggleLayerVisibility}
-            onExport={() => setExportDialogOpen(true)}
-            exportLabel={exportStatus === "sending" ? messages.navigation.exportSending : messages.navigation.export}
-            exportDisabled={exportStatus === "sending"}
-            exportStatus={exportStatus === "idle" ? undefined : {
-              label: messages.navigation[`export${exportStatus[0].toUpperCase()}${exportStatus.slice(1)}` as "exportSending" | "exportSuccess" | "exportError"],
-              state: exportStatus,
-            }}
-            symmetryEnabled={symmetryEnabled}
-            symmetry={symmetry}
-            onSetSymmetry={(value) => setSymmetry(value)}
-            onSetSymmetryPosition={setSymmetryPosition}
-            onToggleSymmetry={() => setSymmetryEnabled((value) => !value)}
-          />
+          {layersPanelVisible && (
+            <LayersPanel
+              layers={layers}
+              messages={messages}
+              canvasWidth={canvasSize.width}
+              canvasHeight={canvasSize.height}
+              activeLayerId={activeLayerId}
+              onAddLayer={addLayer}
+              onDeleteActiveLayer={deleteActiveLayer}
+              onMoveActiveLayer={moveActiveLayer}
+              onSetActiveLayer={setActiveLayerId}
+              onToggleLayerVisibility={toggleLayerVisibility}
+              onExport={() => setExportDialogOpen(true)}
+              exportLabel={exportStatus === "sending" ? messages.navigation.exportSending : messages.navigation.export}
+              exportDisabled={exportStatus === "sending"}
+              exportStatus={exportStatus === "idle" ? undefined : {
+                label: messages.navigation[`export${exportStatus[0].toUpperCase()}${exportStatus.slice(1)}` as "exportSending" | "exportSuccess" | "exportError"],
+                state: exportStatus,
+              }}
+              symmetryEnabled={symmetryEnabled}
+              symmetry={symmetry}
+              onSetSymmetry={(value) => setSymmetry(value)}
+              onSetSymmetryPosition={setSymmetryPosition}
+              onToggleSymmetry={() => setSymmetryEnabled((value) => !value)}
+            />
+          )}
         </div>
       )}
 

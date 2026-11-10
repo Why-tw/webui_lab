@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 
 import { CanvasPreview } from "./CanvasPreview";
+import { GoogleAccountButton } from "./GoogleAccountButton";
 import type { Messages } from "../resources/locales";
 import type { Project } from "../types/project";
 
@@ -93,17 +94,20 @@ export function ProjectsPage({
                     <h1 id="projects-heading">{messages.projects.title}</h1>
                     <p>{messages.projects.description}</p>
                 </div>
-                <form className="new-project-form" onSubmit={createProject}>
-                    <input
-                        value={newProjectName}
-                        onChange={(event) => setNewProjectName(event.target.value)}
-                        placeholder={messages.projects.namePlaceholder}
-                        aria-label={messages.projects.namePlaceholder}
-                        maxLength={60}
-                        required
-                    />
-                    <button type="submit">{messages.projects.create}</button>
-                </form>
+                <div className="projects-header-actions">
+                    <form className="new-project-form" onSubmit={createProject}>
+                        <input
+                            value={newProjectName}
+                            onChange={(event) => setNewProjectName(event.target.value)}
+                            placeholder={messages.projects.namePlaceholder}
+                            aria-label={messages.projects.namePlaceholder}
+                            maxLength={60}
+                            required
+                        />
+                        <button type="submit">{messages.projects.create}</button>
+                    </form>
+                    <GoogleAccountButton messages={messages} />
+                </div>
             </header>
             {storageError && <p className="project-storage-error" role="alert">{messages.projects.storageError}</p>}
             <div className="project-list">
