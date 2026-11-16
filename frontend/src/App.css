@@ -231,7 +231,46 @@
 }
 
 .community-project-card {
-    aspect-ratio: 5 / 4;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: white;
+}
+
+.community-project-preview {
+    min-height: 120px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: #f0f1eb;
+}
+
+.community-project-canvas-preview {
+    width: 100%;
+    height: 200px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.community-project-card-details {
+    padding: 14px;
+}
+
+.community-project-card-details h2 {
+    margin: 0 0 10px;
+    overflow: hidden;
+    color: var(--ink);
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.community-project-card-details p,
+.community-project-card-details time {
+    display: block;
+    margin: 5px 0 0;
+    color: var(--muted);
+    font-size: 11px;
 }
 
 .community-empty-state {
@@ -262,6 +301,28 @@
 
 .community-empty-state p {
     margin: 0;
+}
+
+.community-load-more-sentinel {
+    height: 1px;
+}
+
+.community-more-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 18px 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.community-more-status button {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--ink);
+    background: white;
 }
 
 .projects-page {

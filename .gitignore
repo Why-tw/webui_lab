@@ -23,3 +23,6 @@ devlog/
 # cache
 __pycache__/
 __pycache__
+
+# Local shared-project database
+/backend/db/*.sqlite3

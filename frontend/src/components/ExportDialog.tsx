@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Messages } from "../resources/locales";
 import type { Layer } from "../types/pixelEditor";
 
-export type ExportFormat = "SVG" | "PNG" | "BMP";
+export type ExportFormat = "SVG" | "PNG" | "BMP" | "JPG";
 
 type ExportDialogProps = {
     layers: Layer[];
@@ -64,6 +64,7 @@ export function ExportDialog({ layers, messages, sending, onClose, onExport }: E
                             <option value="SVG">SVG</option>
                             <option value="PNG">PNG</option>
                             <option value="BMP">BMP</option>
+                            <option value="JPG">JPG</option>
                         </select>
                     </label>
 

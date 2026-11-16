@@ -309,6 +309,21 @@ function App() {
     setProjects((current) => current.map((project) => project.id === projectId ? { ...project, name } : project));
   }
 
+  async function shareProject(project: Project, authorName: string, sharedName: string): Promise<void> {
+    const response = await fetch("/api/projects/share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: sharedName,
+        canvasSize: project.canvasSize,
+        displayProfile: project.displayProfile,
+        authorName,
+        layers: project.layers,
+      }),
+    });
+    if (!response.ok) throw new Error("Unable to share project.");
+  }
+
   function changeActiveTool(nextTool: Tool) {
     setPencilCursorPreview(null);
     setSelectionCursorPreview(null);
@@ -1134,7 +1149,7 @@ function App() {
         .join("")
         .replace(/[<>:"/\\|?*]/g, "-")
         .replace(/[. ]+$/, "") || "pixel-art";
-      downloadLink.download = `${safeFileName.replace(/\.(svg|png|bmp)$/i, "")}.${format.toLowerCase()}`;
+      downloadLink.download = `${safeFileName.replace(/\.(svg|png|bmp|jpg)$/i, "")}.${format.toLowerCase()}`;
       downloadLink.click();
       URL.revokeObjectURL(downloadUrl);
       setExportStatus("success");
@@ -1197,6 +1212,7 @@ function App() {
           onCreateProject={createNewProject}
           onDeleteProject={deleteProject}
           onRenameProject={renameProject}
+          onShareProject={shareProject}
         />
       ) : currentPage === "community" ? (
         <CommunityPage messages={messages.community} />

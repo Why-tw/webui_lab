@@ -14,6 +14,7 @@ type ProjectsPageProps = {
     onCreateProject: (name: string) => void;
     onDeleteProject: (projectId: string) => void;
     onRenameProject: (projectId: string, name: string) => void;
+    onShareProject: (project: Project, authorName: string, sharedName: string) => Promise<void>;
 };
 
 type ContextMenu = {
@@ -24,7 +25,7 @@ type ContextMenu = {
 
 type ProjectDialog = {
     projectId: string;
-    mode: "rename" | "details" | "delete";
+    mode: "rename" | "details" | "delete" | "share";
 };
 
 export function ProjectsPage({
@@ -35,11 +36,31 @@ export function ProjectsPage({
     onCreateProject,
     onDeleteProject,
     onRenameProject,
+    onShareProject,
 }: ProjectsPageProps) {
     const [newProjectName, setNewProjectName] = useState("");
+
+    function getDefaultProjectName() {
+        const nameTemplate = messages.projects.untitledName;
+        const [prefix, suffix = ""] = nameTemplate.split("{number}");
+        const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escapedSuffix = suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const namePattern = new RegExp(`^${escapedPrefix}(\\d+)${escapedSuffix}$`);
+        const nextNumber = projects.reduce((maxNumber, project) => {
+            const match = project.name.match(namePattern);
+            return Math.max(maxNumber, match ? Number(match[1]) : 0);
+        }, 0) + 1;
+        return nameTemplate.replace("{number}", String(nextNumber));
+    }
+
     const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
     const [dialog, setDialog] = useState<ProjectDialog | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    const [shareName, setShareName] = useState("");
+    const [authorName, setAuthorName] = useState("");
+    const [shareResult, setShareResult] = useState(false);
+    const [shareError, setShareError] = useState(false);
+    const [sharing, setSharing] = useState(false);
     const contextProject = projects.find((project) => project.id === contextMenu?.projectId);
     const dialogProject = projects.find((project) => project.id === dialog?.projectId);
 
@@ -57,8 +78,7 @@ export function ProjectsPage({
 
     function createProject(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
-        const name = newProjectName.trim();
-        if (!name) return;
+        const name = newProjectName.trim() || getDefaultProjectName();
         onCreateProject(name);
         setNewProjectName("");
     }
@@ -67,7 +87,7 @@ export function ProjectsPage({
         setContextMenu({
             projectId,
             x: Math.min(x, window.innerWidth - 180),
-            y: Math.min(y, window.innerHeight - 150),
+            y: Math.min(y, window.innerHeight - 190),
         });
     }
 
@@ -86,6 +106,36 @@ export function ProjectsPage({
         setDialog(null);
     }
 
+    function startShare() {
+        if (!contextProject) return;
+        setShareName(contextProject.name);
+        setAuthorName("");
+        setShareResult(false);
+        setShareError(false);
+        setDialog({ projectId: contextProject.id, mode: "share" });
+        setContextMenu(null);
+    }
+
+    async function shareProject(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (!dialogProject) return;
+        if (!shareName.trim() || !authorName.trim()) {
+            setShareError(true);
+            return;
+        }
+
+        setSharing(true);
+        setShareError(false);
+        try {
+            await onShareProject(dialogProject, authorName.trim(), shareName.trim());
+            setShareResult(true);
+        } catch {
+            setShareError(true);
+        } finally {
+            setSharing(false);
+        }
+    }
+
     return (
         <section className="projects-page" aria-labelledby="projects-heading">
             <header className="projects-heading">
@@ -102,7 +152,6 @@ export function ProjectsPage({
                             placeholder={messages.projects.namePlaceholder}
                             aria-label={messages.projects.namePlaceholder}
                             maxLength={60}
-                            required
                         />
                         <button type="submit">{messages.projects.create}</button>
                     </form>
@@ -167,6 +216,7 @@ export function ProjectsPage({
                             setDialog({ projectId: contextProject.id, mode: "details" });
                             setContextMenu(null);
                         }}>{messages.projects.details}</button>
+                        <button type="button" role="menuitem" onClick={startShare}>{messages.projects.share}</button>
                         <button type="button" role="menuitem" className="danger" onClick={() => {
                             setDialog({ projectId: contextProject.id, mode: "delete" });
                             setContextMenu(null);
@@ -182,7 +232,8 @@ export function ProjectsPage({
                         <h2 id="project-dialog-title">
                             {dialog.mode === "rename" ? messages.projects.rename
                                 : dialog.mode === "details" ? messages.projects.details
-                                    : messages.projects.delete}
+                                    : dialog.mode === "share" ? messages.projects.share
+                                        : messages.projects.delete}
                         </h2>
                         {dialog.mode === "rename" && (
                             <form onSubmit={saveRename}>
@@ -220,6 +271,45 @@ export function ProjectsPage({
                                     <button type="button" className="primary" onClick={() => setDialog(null)}>{messages.projects.close}</button>
                                 </div>
                             </>
+                        )}
+                        {dialog.mode === "share" && (
+                            shareResult ? (
+                                <>
+                                    <p role="status">{messages.projects.shareSuccess}</p>
+                                    <div className="project-dialog-actions">
+                                        <button type="button" className="primary" onClick={() => setDialog(null)}>{messages.projects.close}</button>
+                                    </div>
+                                </>
+                            ) : (
+                                <form onSubmit={shareProject}>
+                                    <label>
+                                        {messages.projects.shareName}
+                                        <input
+                                            autoFocus
+                                            value={shareName}
+                                            onChange={(event) => setShareName(event.target.value)}
+                                            maxLength={255}
+                                            required
+                                        />
+                                    </label>
+                                    <label>
+                                        {messages.projects.authorName}
+                                        <input
+                                            value={authorName}
+                                            onChange={(event) => setAuthorName(event.target.value)}
+                                            maxLength={120}
+                                            required
+                                        />
+                                    </label>
+                                    {shareError && <p role="alert">{messages.projects.shareError}</p>}
+                                    <div className="project-dialog-actions">
+                                        <button type="button" onClick={() => setDialog(null)} disabled={sharing}>{messages.projects.cancel}</button>
+                                        <button type="submit" className="primary" disabled={sharing}>
+                                            {sharing ? messages.projects.sharing : messages.projects.share}
+                                        </button>
+                                    </div>
+                                </form>
+                            )
                         )}
                         {dialog.mode === "delete" && (
                             <>

@@ -3,7 +3,7 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator
 from typing import Literal
 
@@ -20,11 +20,19 @@ class CanvasSize(BaseModel):
     height: int = Field(ge=1, le=4096)
 
 
+class SharedLayer(BaseModel):
+    id: str
+    name: str
+    visible: bool
+    pixels: list[list[str | None]]
+
+
 class ShareProjectRequest(BaseModel):
     file_name: str = Field(alias="fileName", min_length=1, max_length=255)
     canvas_size: CanvasSize = Field(alias="canvasSize")
     display_profile: Literal["custom", "ssd1306", "ssd1327"] = Field(alias="displayProfile")
     author_name: str = Field(alias="authorName", min_length=1, max_length=120)
+    layers: list[SharedLayer] = Field(min_length=1)
 
     @field_validator("file_name", "author_name")
     @classmethod
@@ -51,7 +59,6 @@ def hello():
 
 
 @app.post("/api/projects/share")
-@app.post("/project/share", include_in_schema=False)
 def share_project(request: ShareProjectRequest):
     project_id = str(uuid4())
     project_data = {
@@ -59,6 +66,7 @@ def share_project(request: ShareProjectRequest):
         "canvasSize": request.canvas_size.model_dump(),
         "displayProfile": request.display_profile,
         "authorName": request.author_name,
+        "layers": [layer.model_dump() for layer in request.layers],
         "projectId": project_id,
     }
     project_json = json.dumps(project_data, ensure_ascii=False)
@@ -78,6 +86,12 @@ def share_project(request: ShareProjectRequest):
                     """
                 )
                 connection.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_shared_projects_created_at
+                    ON shared_projects (created_at DESC, project_id DESC)
+                    """
+                )
+                connection.execute(
                     "INSERT INTO shared_projects (project_id, project_json) VALUES (?, ?)",
                     (project_id, project_json),
                 )
@@ -87,6 +101,51 @@ def share_project(request: ShareProjectRequest):
         raise HTTPException(status_code=500, detail="Unable to save the shared project.") from error
 
     return {"projectId": project_id}
+
+
+@app.get("/api/projects/shared")
+def get_shared_projects(
+    limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
+):
+    if not SHARED_PROJECTS_DB.is_file():
+        return {"projects": [], "hasMore": False}
+
+    try:
+        connection = sqlite3.connect(f"{SHARED_PROJECTS_DB.as_uri()}?mode=ro", uri=True)
+        try:
+            table_exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'shared_projects'"
+            ).fetchone()
+            rows = (
+                connection.execute(
+                    """
+                    SELECT project_json, created_at
+                    FROM shared_projects
+                    ORDER BY created_at DESC, project_id DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (limit + 1, offset),
+                ).fetchall()
+                if table_exists
+                else []
+            )
+        finally:
+            connection.close()
+
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        projects = []
+        for project_json, created_at in rows:
+            project = json.loads(project_json)
+            if not isinstance(project, dict):
+                raise ValueError("Shared project data must be a JSON object.")
+            project.setdefault("layers", [])
+            projects.append({**project, "createdAt": created_at})
+    except (OSError, sqlite3.Error, json.JSONDecodeError, ValueError) as error:
+        raise HTTPException(status_code=500, detail="Unable to load shared projects.") from error
+
+    return {"projects": projects, "hasMore": has_more}
 
 
 @app.post("/api/export")
